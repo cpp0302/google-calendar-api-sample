@@ -24,8 +24,7 @@ try {
 function authorize(credentials, callback) {
   const {client_secret, client_id, redirect_uris} = credentials.installed;
   let token = {};
-  const oAuth2Client = new google.auth.OAuth2(
-      client_id, client_secret, redirect_uris[0]);
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
   // Check if we have previously stored a token.
   try {
@@ -34,7 +33,28 @@ function authorize(credentials, callback) {
     return getAccessToken(oAuth2Client, callback);
   }
   oAuth2Client.setCredentials(JSON.parse(token));
+
+  // リフレッシュ追加
+  // http://kurowasi2525.hatenablog.com/entry/2017/03/01/162605
+  oAuth2Client.refreshAccessToken((err, tokens) => {
+    if (err) {
+      console.log(err);
+      return;
+    }
+    oAuth2Client.credentials = tokens;
+    storeToken(tokens);
+    console.log('token refresh complete!')
+  });
+
   callback(oAuth2Client);
+}
+
+function storeToken(token) {
+  // Store the token to disk for later program executions
+  fs.writeFile(TOKEN_PATH, JSON.stringify(token), (err) => {
+    if (err) console.error(err);
+    console.log('Token stored to', TOKEN_PATH);
+  });
 }
 
 /**
@@ -57,14 +77,8 @@ function getAccessToken(oAuth2Client, callback) {
     rl.close();
     oAuth2Client.getToken(code, (err, token) => {
       if (err) return callback(err);
-      oAuth2Client.setCredentials(token);
-      // Store the token to disk for later program executions
-      try {
-        fs.writeFileSync(TOKEN_PATH, JSON.stringify(token));
-        console.log('Token stored to', TOKEN_PATH);
-      } catch (err) {
-        console.error(err);
-      }
+    oAuth2Client.setCredentials(token);
+    storeToken(token);
       callback(oAuth2Client);
     });
   });
